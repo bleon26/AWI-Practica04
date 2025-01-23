@@ -1,102 +1,112 @@
-import express, {request,response} from 'express';
+//Exportacion de librerias necesarias
+import express from 'express';
 import session from 'express-session';
-import bodyPatser from 'body-parser';
+import bodyParser from 'body-parser';
 import {v4 as uuidv4} from 'uuid';
 import os from 'os';
-import { Interface } from 'readline';
 
-const app=express();
-const port=3500;
+const app = express();
+const PORT = 3000;
 
-app.listen(port,()=>{
-    console.log(`servidor iniciado en http://localhost:${port}`)
+app.listen(PORT,()=>{
+    console.log(`Servidor iniciado en http://localhost:${PORT}`)
 })
-app.use(express.json());
+
+app.use(express.json())
 app.use(express.urlencoded({extended:true}));
 
-const sessions={}
+//Sesiones almacenadas en Memoria(RAM)
+//const session = {};
 
 app.use(
     session({
-        secret:"P4-BLC#Luzleon-SessionesHTTP-VariablesDeSesion",
+        secret:"leon2610b-SesionesHTTP-VariablesDeSesion",
         resave:false,
         saveUninitialized:false,
-        cookie:{maxAge: 5 * 60 * 100}
+        cookie:{maxAge: 5 * 60 * 1000}
     })
 )
 
 app.get('/',(req,res)=>{
-    return response.status(200).json({
-        message:'Bienvenido al API de control de sesiones',
-        author : "Brandon Leon Cabrera" 
-    })
+    return res.status(200).json({message:"Bienvenid@ al API de Control de Sesiones",
+                                author:"Brandon Leon Cabrera."})
 })
 
-const getLocalIP=()=>{
-    const networkInterfaces=os.networkInterfaces();
-    for(const interfaceName in networkInterfaces){
+//Función de utilidad que nos permitirá acceder a la información de red
+const getLocalIp=()=>{
+    const networkInterfaces = os.networkInterfaces();
+    for (const interfaceName in networkInterfaces){
         const interfaces=networkInterfaces[interfaceName];
         for(const iface of interfaces){
-            if(iface.family==='IPv4' && !iface.internal){
+            //IPv4 y no interna (no localhost)
+            if(iface.family === "IPv4" && !iface.internal){
                 return iface.address;
             }
         }
     }
-    return null;
-}
-app.post('/login',(request,response)=>{
-    const {email,nickname,macaAddress}=request.body;
-    if(!email || !nickname || !macaAddress){
-        return response.status(400).json({
-            message:'Faltan parametros'});
-        }
-    const sessionId = uuidv4();
-    const now = new Date();
+    return null; //Retorna null si no encuntra una IP válida
+};
 
-    sessions[sessionId]={
+app.post('/login',(req,res)=>{
+    const{email,nickname,macAddress}=req.body;
+    if(!email || !nickname || !macAddress){
+        return res.status(400).json({message:"Se esperan campos requeridos"})
+    }
+
+    const sessionId=uuidv4();
+    const now=new Date();
+
+    session[sessionId]={
         sessionId,
         email,
         nickname,
-        macaAddress,
-        ip:getLocallip(request),
-        createdAt:now,
-        lastAccessedAt:now,
-
+        macAddress,
+        ip:getLocalIp(),
+        createAt:now,
+        lastAcces:now
     };
+
     res.status(200).json({
-        message:'Sesion iniciada',
-        sessionId
+        message: "Se ha logeado de manera exitosa",
+        sessionId,
     });
 });
 
-app.get('/logout',(request,response)=>{
-    const {sessionId}=request.body;
-    if(!sessionId|| !sessions[sessionId]){
-        return response.status(400).json({
-            message:'no se encontraron un sesion activa'
-        });
+app.post("/logout",(req,res)=>{
+    const {sessionId} =req.body;
+    if(!sessionId || !sessions[sessionId]){
+        return res.status(404).json({message: "No se ha encontrado una sesion activa"});
     }
     delete sessions[sessionId];
-    request.session.destroy((err)=>{
+    req.session.destroy((err)=>{
         if(err){
-            return response.status(500).send(message:'Error al cerrar la sesion')
+            return res.status(500).send('Error al cerrar sesión')
         }
     })
-    reponse.status(200).json({message:"Loguot successful"});
-})
-
-app.post("/update",(req,res)=>{
+    res.status(200).json({message:"Logout successful"});
 });
 
+app.post("/update", (req,res)=>{
+    const {sessionId, email, nickname}=req.body;
+
+    if(!sessionId || !sessions[sessionId]){
+        return res.status(404).json({message:"No existe una sesion activa"})
+    }
+    if(email) sessions[sessionId].email=email;
+    if(nickname) sessions[sessionId].nickname=nickname;
+    IdleDeadline()
+    sessions[sessionId].lastAcces=new Date();
+})
+
 app.get("/status",(req,res)=>{
-    const {sessionId}=req.query;
-    if(!sessionId|| !sessions[sessionId]){
-        return res.status(400).json({
-            message:'no se encontraron un sesion activa'
+    const sessionId =req.query.sessionId;
+    if(!sessionId || !sessions[sessionId]){
+        return res.status(404).json({
+            message:"No existe una sesion activa"
         });
     }
     res.status(200).json({
-        message:'Sesion actualizada correctamente',
+        message:'sesión activa',
         session:sessions[sessionId]
     });
-})
+});
