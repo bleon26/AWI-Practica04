@@ -1,154 +1,133 @@
-import express from 'express';
+import express, {request, response} from 'express';
 import session from 'express-session';
 import bodyParser from 'body-parser';
-import { v4 as uuidv4 } from 'uuid';
-import os from 'os';
-import macaddress from 'macaddress';
 import moment from 'moment-timezone';
+import {v4 as uuidv4} from 'uuid';
+import macaddress from 'macaddress';
+import os from 'os';
 
-const app = express();
-const PORT = 3000;
+const app= express();
+const PORT = 3500;
 
-app.listen(PORT, () => {
-    console.log(`Server iniciado en http://localhost:${PORT}`);
+app.listen(PORT, ()=> {
+    console.log(`Servidor iniciado en http://localhost ${PORT}`);
 });
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json()); //Habilita la comunicación ´por medio del body y entienda el estandar
+app.use(express.urlencoded({extended: true}));
 
-const sessions = {};
+//Sesones almacenadas en Memoria RAM
+const sessions= {};
 
 app.use(
     session({
-        secret: "BLC26#luzleon-SessionesHTTP-VariablesdeSesion",
+        secret: "BLC#LuzLeon-SesionesHTTP-VariableDeSesion",
         resave: false,
         saveUninitialized: true,
-        cookie: { maxAge: 5 * 60 * 1000 }
+        cookie: {maxAge: 5*60*1000}
     })
-);
+)
 
-app.get('/', (req, res) => {
-    return res.status(200).json({
-        message: 'Bienvendio a la API de Control de Sesiones',
-        author: 'Brandon Leon Cabrera'
-    });
+//Bienvenida al entrar al servidor
+app.get('/', (req, res) =>{
+    return res.status(200).json({message: "Bienvenida al API de Control de Sesiones",
+    author: "Brandon Leon Cabrera"})
 });
 
-const getLocalIp = () => {
+//Función de utilidad que nos permitiera acceder a la info de la interfaz de red
+const getLocal = () =>{
     const networkInterfaces = os.networkInterfaces();
-    for (const interfaceName in networkInterfaces) {
+    for(const interfaceName in networkInterfaces){
         const interfaces = networkInterfaces[interfaceName];
-        for (const iface of interfaces) {
-            if (iface.family === "IPv4" && !iface.internal) {
+        for(const iface of interfaces){
+            // IPv4 y no interna (no localhost)
+            if(iface.family === "IPv4" && !iface.internal){
                 return iface.address;
             }
         }
     }
-    return null;
-};
+    return null; //Retorna null si no encuentra una IP válida
+}
 
-const getServerMac = () => {
+const getMac= () =>{
     return new Promise((resolve, reject) => {
-        macaddress.one((err, mac) => {
-            if (err) {
+        macaddress.one((err, mac)=>{
+            if(err){
                 reject(err);
             }
-            resolve(mac);
-        });
-    });
-};
+            resolve(mac)
+        })
+    })
+}
 
-app.post('/login', async (req, res) => {
-    const { email, nickname, macAddress } = req.body;
-    if (!email || !nickname || !macAddress) {
-        return res.status(400).json({
-            message: 'Se esperan campos requeridos'
-        });
+
+//Endpoint de logueo
+app.post('/login', async(req, res) =>{
+    const {email, nickname, macAddress} = req.body;
+
+    if(!email || !nickname ||!macAddress){
+        return res.status(400).json({message: "Se esperan campos requeridos"})
     }
 
-    const sessionID = uuidv4();
-    const createdAt_CDMX = moment().tz('America/Mexico_City').format('YYYY/MM/DD HH:mm:ss');
+    const sessionId = uuidv4();
+    const createdAt_CDMX = moment().tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss')
 
-    req.session.email = email;
-    req.session.sessionID = sessionID;
-    req.session.nickname = nickname;
-    req.session.macAddress = macAddress;
-    req.session.createdAt = createdAt_CDMX;
-    req.session.lastAccessed = createdAt_CDMX;
-    req.session.serverIp = getLocalIp();
-    req.session.serverMac = await getServerMac();
+    req.session.email= email;
+    req.session.sessionId=sessionId;
+    req.session.nickname= nickname;
+    req.session.macAddress= macAddress;
+    req.session.createdAt= createdAt_CDMX;
+    req.session.lastAccesed= createdAt_CDMX;
+    req.session.serverIp= getLocal();
+    req.session.serverMac= await getMac();
 
-    sessions[sessionID] = req.session;
-
+    sessions[sessionId] = req.session;
+    
     res.status(200).json({
-        message: 'Se ha logueado de manera exitosa',
-        sessionID
+        message: "Se ha logueado exitosamente",
+        sessionId
     });
-});
+})
 
-app.post('/logout', (req, res) => {
-    if (!req.session.sessionID || !sessions[req.session.sessionID]) {
-        return res.status(404).json({
-            message: 'No existe una sesión activa'
-        });
+app.post('/update', (req, res)=>{
+    const {email, nickname} = req.body;
+
+    if(!req.session.sessionId || !sessions[req.session.sessionId]){
+        return res.status(400).json({message: "No existe una sesión activa"})
     }
 
-    delete sessions[req.session.sessionID];
-    req.session.destroy((err) => {
-        if (err) {
-            return res.status(500).json({
-                message: 'Error al cerrar sesión'
-            });
-        }
-    });
+    if(email) req.session.email = email;
+    if(nickname) req.session.nickname= nickname;
+    
+    req.session.lastAccesed= moment().tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss')
+
+    sessions[req.session.sessionId]= req.session;
 
     res.status(200).json({
-        message: 'Logout exitoso'
-    });
-});
+        message: 'Datos actualizados', session: req.session
+    })
 
-app.post('/update', (req, res) => {
-    const { email, nickname } = req.body;
+})
 
-    if (!req.session.sessionID || !sessions[req.session.sessionID]) {
-        return res.status(404).json({
-            message: 'No existe una sesión activa'
-        });
+app.get('/status', (req, res)=>{
+    if(!req.session.sessionId || !sessions[req.session.sessionId]){
+        return res.status(404).json({message: "No hay sesiones activa"})
     }
 
-    if (email) req.session.email = email;
-    if (nickname) req.session.nickname = nickname;
-    req.session.lastAccessed = moment().tz('America/Mexico_City').format('YYYY/MM/DD HH:mm:ss');
-
-    sessions[req.session.sessionID] = req.session;
-
-    res.status(200).json({
-        message: 'Datos actualizados',
-        session: req.session
-    });
-});
-
-app.get('/status', (req, res) => {
-    if (!req.session.sessionID || !sessions[req.session.sessionID]) {
-        return res.status(404).json({
-            message: 'No existe una sesión activa'
-        });
-    }
-
-    const session = sessions[req.session.sessionID];
-    const now = moment();
-    const idleTime = now.diff(moment(session.lastAccessed, 'YYYY/MM/DD HH:mm:ss'), 'seconds');
-    const duration = now.diff(moment(session.createdAt, 'YYYY/MM/DD HH:mm:ss'), 'seconds');
+    const session= sessions[req.session.sessionId];
+    const now= moment();
+    const time=now.diff(moment(session.lastAccesed, 'YYYY/MM/DD HH:mm:ss'), 'seconds');
+    const duration= now.diff(moment(session.createdAt, 'YYYY/MM/DD HH:mm:ss'), 'seconds');
 
     res.status(200).json({
-        message: 'Sesión activa',
-        session,
-        idleTime: `${idleTime} segundos`,
+        message: "Sesión Activa",
+        session, 
+        time: `${time} segundos`,
         duration: `${duration} segundos`
-    });
-});
+    })
+})
 
-app.get('/sessionactives', (req, res) => {
+app.get('/sessionAll', (req, res) => {
     if (Object.keys(sessions).length === 0) {
         return res.status(404).json({
             message: 'No hay sesiones activas'
@@ -161,7 +140,7 @@ app.get('/sessionactives', (req, res) => {
         formattedSessions[sessionID] = {
             ...session,
             createdAt: moment(session.createdAt).tz('America/Mexico_City').format('YYYY/MM/DD HH:mm:ss'),
-            lastAccessed: moment(session.lastAccessed).tz('America/Mexico_City').format('YYYY/MM/DD HH:mm:ss')
+            lastAccesed: moment(session.lastAccesed).tz('America/Mexico_City').format('YYYY/MM/DD HH:mm:ss')
         };
     }
 
@@ -175,9 +154,24 @@ setInterval(() => {
     const now = moment();
     for (const sessionID in sessions) {
         const session = sessions[sessionID];
-        const idleTime = now.diff(moment(session.lastAccessed, 'YYYY/MM/DD HH:mm:ss'), 'seconds');
+        const idleTime = now.diff(moment(session.lastAccesed, 'YYYY/MM/DD HH:mm:ss'), 'seconds');
         if (idleTime > 120) { // 2 minutos
             delete sessions[sessionID];
         }
+    }
+}, 60000);
+
+app.post('/logout', (req, res)=>{
+
+    if(!req.session.sessionId || !sessions[req.session.sessionId]){
+        return res.status(404).json({message: "No se ha encontrado una sesión activa"});
     }
-}, 60000);
+
+    delete sessions[req.session.sessionId];
+    req.session.destroy((err)=>{
+        if(err){
+            return res.status(500).send('Error al cerrar sesión')
+        };
+    });
+    res.status(200).json({message: "Logout successful"});
+});
