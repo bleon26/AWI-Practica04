@@ -7,7 +7,7 @@ import macaddress from 'macaddress';
 import moment from 'moment-timezone';
 import mongoose from 'mongoose';
 import forge from 'node-forge';
-import Session from './models/models.js'
+import Session from './models/models.js';
 
 const app = express();
 const PORT = 3500;
@@ -31,7 +31,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(
   session({
-    secret: "BLC#LuzLeon-SessionesHTTP-VariablesdeSesion",
+    secret: "BLC-LuzLeon-SesionesHTTP-VariablesDeSesion",
     resave: false,
     saveUninitialized: true,
     cookie: { maxAge: 10 * 60 * 1000 } 
@@ -173,17 +173,17 @@ app.get('/status', async (req, res) => {
   res.status(200).json({
     message: 'Sesión activa',
     session,
-    inactividad: `${inactividad} minutos`,
-    duracion: `${duracion} minutos`
+    inactividad: '${inactividad} minutos',
+    duracion: '${duracion} minutos'
   });
 });
 
-app.get('/activeSessions', async (req, res) => {
+app.get('/active-sessions', async (req, res) => {
   const sessions = await Session.find();
 
   if (sessions.length === 0) {
     return res.status(404).json({
-      message: 'No hay sesiones activas'
+      message: 'No hay sesiones'
     });
   }
 
@@ -194,23 +194,56 @@ app.get('/activeSessions', async (req, res) => {
       ...session._doc,
       createdAt: moment(session.createdAt).tz('America/Mexico_City').toISOString(),
       lastAccessed: moment(session.lastAccessed).tz('America/Mexico_City').toISOString(),
-      inactividad: `${inactividad} minutos`
+      inactividad: '${inactividad} minutos'
     };
   });
 
   res.status(200).json({
     message: 'Sesiones activas',
-    sessions: formattedSessions
+    sessions: 'formattedSessions'
   });
+});
+app.get('/currentSessions', async (req, res) => {// sesiones actuales
+  try {
+    const activeSessions = await Session.find({ status: "Activa" });
+
+    if (activeSessions.length === 0) {
+      return res.status(404).json({ message: 'No hay sesiones activas' });
+    }
+
+    const formattedSessions = activeSessions.map(session => ({
+      ...session._doc,
+      createdAt: moment(session.createdAt).tz('America/Mexico_City').toISOString(),
+      lastAccessed: moment(session.lastAccessed).tz('America/Mexico_City').toISOString(),
+    }));
+
+    res.status(200).json({ message: 'Sesiones activas', sessions: formattedSessions });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener sesiones activas', error });
+  }
+});
+
+app.delete('/delete', async (req, res) => {
+  try {
+    await Session.deleteMany({});
+    res.status(200).json({ message: 'Todas las sesiones han sido eliminadas.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar las sesiones', error });
+  }
 });
 
 setInterval(async () => {
   const now = moment();
   const sessions = await Session.find();
+  
   for (const session of sessions) {
-    const inactividad = now.diff(moment(session.lastAccessed), 'minutes');
-    if (inactividad > 5) { 
-      await Session.updateOne({ sessionID: session.sessionID }, { status: `Inactiva por ${inactividad} minutos` });
+    const lastAccessedMoment = moment(session.lastAccessed); // Asegúrate de que la fecha sea de tipo Moment
+    const inactividad = now.diff(lastAccessedMoment, 'minutes');
+    
+    if (inactividad > 5) { // Si la inactividad es mayor a 5 minutos
+      await Session.updateOne({ sessionID: session.sessionID }, { 
+        status: `Inactiva por ${inactividad} minutos` 
+      });
     }
   }
-}, 60000); 
+}, 60000); // Se ejecuta cada minuto
