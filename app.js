@@ -13,7 +13,7 @@ const app = express();
 const PORT = 3500;
 
 // Conexión a MongoDB
-mongoose.connect('mongodb+srv://DanielaLopez:danielalopez66@danielalopez.6gcvi.mongodb.net/sessionApi?retryWrites=true&w=majority&appName=DanielaLopez')
+mongoose.connect('mongodb+srv://brandonleon:luzleon2610b@clusterleon.wpahm.mongodb.net/apisessiones?retryWrites=true&w=majority&appName=ClusterLeon')
 .then((db)=> console.log("MongoDB Atlas Connected"))
 .catch((error)=> console.error(error));
 
