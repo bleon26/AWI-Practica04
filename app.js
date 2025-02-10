@@ -203,7 +203,7 @@ app.get('/active-sessions', async (req, res) => {
     sessions: 'formattedSessions'
   });
 });
-app.get('/currentSessions', async (req, res) => {// sesiones actuales
+app.get('/SessionsActive', async (req, res) => {// sesiones actuales
   try {
     const activeSessions = await Session.find({ status: "Activa" });
 
