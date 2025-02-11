@@ -17,6 +17,7 @@ mongoose.connect('mongodb+srv://brandonleon:luzleon2610b@clusterleon.wpahm.mongo
 .then((db)=> console.log("MongoDB Atlas Connected"))
 .catch((error)=> console.error(error));
 
+
 // Generación de claves RSA
 const keypair = forge.pki.rsa.generateKeyPair(600);
 const publicKey = forge.pki.publicKeyToPem(keypair.publicKey);
@@ -34,7 +35,7 @@ app.use(
     secret: "BLC-LuzLeon-SesionesHTTP-VariablesDeSesion",
     resave: false,
     saveUninitialized: true,
-    cookie: { maxAge: 10 * 60 * 1000 } 
+    cookie: { maxAge: 10 * 60 * 1000 }
   })
 );
 
@@ -83,7 +84,7 @@ app.post('/login', async (req, res) => {
   }
 
   const sessionID = uuidv4();
-  const createdAt_CDMX = moment().tz('America/Mexico_City').toISOString();
+  const createdAt_CDMX = moment().tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss');
   const serverIp = encryptData(getLocalIp() || '');
   const serverMac = encryptData(await getServerMac());
   const encryptedMacAddress = encryptData(macAddress);
@@ -142,7 +143,7 @@ app.post('/update', async (req, res) => {
 
   if (email) session.email = email;
   if (nickname) session.nickname = nickname;
-  session.lastAccessed = moment().tz('America/Mexico_City').toISOString();
+  session.lastAccessed = moment().tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss');
 
   await session.save();
 
@@ -166,19 +167,19 @@ app.get('/status', async (req, res) => {
     return res.status(404).json({ message: 'Sesión no encontrada' });
   }
 
-  const now = moment();
-  const inactividad = now.diff(moment(session.lastAccessed), 'minutes');
-  const duracion = now.diff(moment(session.createdAt), 'minutes');
+  const now = moment().tz('America/Mexico_City');
+  const inactividad = now.diff(moment(session.lastAccessed).tz('America/Mexico_City'), 'minutes');
+  const duracion = now.diff(moment(session.createdAt).tz('America/Mexico_City'), 'minutes');
 
   res.status(200).json({
     message: 'Sesión activa',
     session,
-    inactividad: '${inactividad} minutos',
-    duracion: '${duracion} minutos'
+    inactividad: `${inactividad} minutos`,
+    duracion: `${duracion} minutos`
   });
 });
 
-app.get('/active-sessions', async (req, res) => {
+app.get('/Sessions', async (req, res) => {
   const sessions = await Session.find();
 
   if (sessions.length === 0) {
@@ -187,23 +188,24 @@ app.get('/active-sessions', async (req, res) => {
     });
   }
 
-  const now = moment();
+  const now = moment().tz('America/Mexico_City');
   const formattedSessions = sessions.map(session => {
-    const inactividad = now.diff(moment(session.lastAccessed), 'minutes');
+    const inactividad = now.diff(moment(session.lastAccessed).tz('America/Mexico_City'), 'minutes');
     return {
       ...session._doc,
-      createdAt: moment(session.createdAt).tz('America/Mexico_City').toISOString(),
-      lastAccessed: moment(session.lastAccessed).tz('America/Mexico_City').toISOString(),
-      inactividad: '${inactividad} minutos'
+      createdAt: moment(session.createdAt).tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss'),
+      lastAccessed: moment(session.lastAccessed).tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss'),
+      inactividad: `${inactividad} minutos`
     };
   });
 
   res.status(200).json({
     message: 'Sesiones activas',
-    sessions: 'formattedSessions'
+    sessions: formattedSessions
   });
 });
-app.get('/SessionsActive', async (req, res) => {// sesiones actuales
+
+app.get('/currentSessions', async (req, res) => {
   try {
     const activeSessions = await Session.find({ status: "Activa" });
 
@@ -213,8 +215,8 @@ app.get('/SessionsActive', async (req, res) => {// sesiones actuales
 
     const formattedSessions = activeSessions.map(session => ({
       ...session._doc,
-      createdAt: moment(session.createdAt).tz('America/Mexico_City').toISOString(),
-      lastAccessed: moment(session.lastAccessed).tz('America/Mexico_City').toISOString(),
+      createdAt: moment(session.createdAt).tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss'),
+      lastAccessed: moment(session.lastAccessed).tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss'),
     }));
 
     res.status(200).json({ message: 'Sesiones activas', sessions: formattedSessions });
@@ -232,17 +234,18 @@ app.delete('/delete', async (req, res) => {
   }
 });
 
+// Intervalo para verificar la inactividad de las sesiones
 setInterval(async () => {
-  const now = moment();
+  const now = moment().tz('America/Mexico_City');  // Asegurarse de usar la hora de Ciudad de México
   const sessions = await Session.find();
-  
   for (const session of sessions) {
-    const lastAccessedMoment = moment(session.lastAccessed); // Asegúrate de que la fecha sea de tipo Moment
-    const inactividad = now.diff(lastAccessedMoment, 'minutes');
-    
-    if (inactividad > 5) { // Si la inactividad es mayor a 5 minutos
-      await Session.updateOne({ sessionID: session.sessionID }, { 
-        status: `Inactiva por ${inactividad} minutos` 
+    const lastAccessed = moment(session.lastAccessed).tz('America/Mexico_City');
+    const inactividad = now.diff(lastAccessed, 'minutes');
+
+    if (inactividad > 10) {
+      await Session.updateOne({ sessionID: session.sessionID }, {
+        status: `Inactiva por ${inactividad} minutos`,
+        lastAccessed: now.format('YYYY-MM-DD HH:mm:ss') // Guardar la hora actual en el formato adecuado
       });
     }
   }
